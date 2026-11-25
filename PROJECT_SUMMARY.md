@@ -49,7 +49,7 @@ Thư mục cũ `thupnm-wp/bids` và `thupnm-wp/fmriprep` (ds002748) thuộc proj
 | Slice timing | Ảnh Philips thường thiếu `SliceTiming`; bổ sung từ bảng LONI `MAYOADIRL_MRI_FMRI_NFQ_*.csv` nếu được, nếu không thì cân nhắc `--ignore slicetiming` cho tất cả. Chốt sau audit |
 | Chạy tăng dần | Được, vì mỗi subject chạy riêng. Ngưỡng QC dùng toàn bộ dữ liệu (MRIQC outlier, Euler theo site) và QC cuối tính lại khi có đủ 3 nhóm. Chốt denoise khi đã có CN |
 | Chạy dài | Server **không có Slurm/Apptainer**, chỉ có Docker (chạy `-u $(id -u):$(id -g)`). Mọi việc dài chạy trong tmux phiên `adni`, mỗi việc một cửa sổ. Script phải chạy lại được sau sự cố: bỏ qua subject xong, dọn `IsRunning` của FreeSurfer |
-| Tài nguyên | Máy 32 core, 125 GB RAM, dùng chung với người khác → giới hạn `MAX_CPUS=18`, `MAX_MEM_GB=72` |
+| Tài nguyên | Máy 32 core, 125 GB RAM, dùng chung với người khác → giới hạn `MAX_CPUS=26`, `MAX_MEM_GB=100` (2 user khác dùng < 1 core, 10–17 GB; chừa 6 core / 25 GB) |
 
 ## 4. Quy tắc chọn 1 T1 + 1 BOLD (cố định trước, không xét nhãn bệnh)
 
@@ -112,11 +112,19 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
   6. MRIQC outlier theo lớp protocol (hãng máy × multiband), không chỉ theo hãng; xem trực quan báo cáo của ảnh bị đánh dấu và một mẫu ngẫu nhiên. FreeSurfer: Euler + xem trực quan, chú ý AD (teo não).
   7. Harmonization: nhiều site nhỏ → ComBat theo scanner/protocol thay vì từng site. Vẫn cần tuổi, giới (ADNIMERGE theo RID).
 
+- Cập nhật 2026-11-25 21:50:
+  - **fMRIPrep chạy thử sub-6179 xong trong 2 giờ 42 phút** (8 core, gồm cả FreeSurfer). Output 1.1 GB + FreeSurfer 296 MB. Còn phải xem RAM đỉnh và báo cáo HTML để chọn tài nguyên cho pilot.
+  - **MRIQC lỗi hết RAM ở 8 GB**: 24 subject AD bị OOM ở synthstrip; sub-5018 bị OOM rồi **treo 6 tiếng** làm hàng đợi AD không kết thúc; sub-6820 bị `BrokenProcessPool` (có lẽ cũng OOM). Đã sửa: 16 GB/subject (`MRIQC_MEM_GB`) và timeout 3 giờ/job (`MRIQC_TIMEOUT`), quá giờ thì dừng container và đánh dấu lỗi. Hàng đợi MCI + chạy lại AD lỗi đang chạy 12 job.
+  - **sub-6264 (AD): file BOLD hỏng ngay trong tarball gốc** (gzip bị cắt cụt, 32112640 byte). Cần khoinguyen chuyển đổi lại. Đang kiểm tra gzip mọi file → `$WORK/audit/gzip_check.tsv`.
+  - Số trong `sub-XXXX` là RID: 395/405 thư mục PTID trong `mci_bids/sourcedata` khớp `sub-<phần số cuối PTID>`.
+
 Việc tiếp theo:
-1. Chốt các quyết định: ngưỡng thời lượng BOLD, multiband, Philips (slice timing, PED), danh sách ưu tiên T1.
-2. Viết và chạy MRIQC cho AD.
-3. Chọn ảnh (25 subject), pilot fMRIPrep.
-4. (Đã xác nhận) số trong `sub-XXXX` là RID: 395/405 thư mục PTID trong `mci_bids/sourcedata` khớp `sub-<phần số cuối PTID>`.
+1. Chốt 7 điểm review ở trên (chờ người dùng).
+2. MRIQC AD + MCI xong → group report, outlier theo lớp protocol, script chọn ảnh (163 subject) → `manifest.tsv`, `filters/<sub>.json`.
+3. Chọn tài nguyên fMRIPrep từ lần chạy thử, pilot 10–20 subject phủ Siemens/GE/Philips/multiband.
+4. Viết runner nối fMRIPrep → XCP-D tự động theo từng subject.
+5. CN: khi có bản final → `00_extract cn` → `01_merge cn` → audit → MRIQC.
+6. Lấy tuổi, giới (ADNIMERGE theo RID).
 
 Lưu ý dữ liệu ADNI: Claude chỉ đọc metadata (tên file, JSON, bảng), không đọc nội dung ảnh.
 
