@@ -41,7 +41,7 @@ Thư mục cũ `thupnm-wp/bids` và `thupnm-wp/fmriprep` (ds002748) thuộc proj
 | Version (giữ nguyên đến hết, kể cả OASIS) | `nipreps/mriqc:24.0.2`, `nipreps/fmriprep:25.2.7`, `pennlinc/xcp_d:26.3.0` |
 | FreeSurfer | **Chạy lại từ đầu** bên trong fMRIPrep cho mọi subject, không dùng output cũ của lab (cohort khác) |
 | Không gian output | CIFTI fsLR-91k: `--output-spaces MNI152NLin6Asym:res-2 --cifti-output 91k` |
-| Atlas | XCP-D `4S256Parcels`, chỉ lấy 200 vùng vỏ não (Schaefer-200, suy từ tên atlas; cần xác nhận bằng file nhãn). MIND dùng đúng Schaefer-200 đó, map về từng subject |
+| Atlas | XCP-D `4S256Parcels`, chỉ lấy **index 1–200** = Schaefer2018 v0.14.3, 200 parcels, 7 networks (100 LH + 100 RH, tên `LH_Vis_1`…`RH_Default_pCunPCC_3`), **đã xác nhận 2026-11-25** từ file nhãn trong image (bản copy: `$WORK/atlases/4S256Parcels/`). Index 201–256 là dưới vỏ/tiểu não (CIT168, HCP thalamus/subcortical, MDTB cerebellum), không dùng. MIND dùng `Schaefer2018_200Parcels_7Networks_order` (cùng thứ tự), map về từng subject |
 | Denoise | Chính: `36P` (có GSR). Độ nhạy: `acompcor` (không GSR) |
 | Motion | `--fd-thresh 0.5`; độ nhạy ở 0.3. FC phải lấy từ dữ liệu đã censor, không dùng dữ liệu interpolated |
 | Lọc tần số | 0.01–0.08 Hz (cần cho ALFF), `--smoothing 0`, `--despike y` |
@@ -94,6 +94,12 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
   - **Philips (24 BOLD): thiếu SliceTiming, TotalReadoutTime và PhaseEncodingDirection** → không có slice timing, SyN-SDC sẽ bị bỏ qua nếu không bổ sung PED.
   - T1: 12 loại SeriesDescription (MPRAGE, Accelerated MPRAGE, IR-FSPGR...).
 - `status.sh`: xem nhanh tiến độ mà không cần vào tmux.
+
+- Chốt 2026-11-25: BOLD ≥ 4.5 phút, giữ multiband, QC cuối ≥ 4 phút sau censor. Số trong `sub-XXXX` là RID (đã xác nhận).
+- MRIQC AD đang chạy (`01_preprocess/03_mriqc.sh`, 2 core / 8 GB mỗi subject, khoảng 11 phút/subject). Giới hạn chung tăng lên 26 core / 100 GB (2 user khác dùng < 1 core).
+- `01_preprocess/04_fmriprep.sh`: chạy fMRIPrep theo từng subject, chạy lại được, dọn `IsRunning`, nhận `$WORK/filters/<sub>.json` nếu có, TemplateFlow chung ở `$WORK/templateflow`. Mặc định 8 core / 32 GB.
+- **Chạy thử fMRIPrep sub-6179** (Siemens Skyra, TR 3 s, 197 vol) bắt đầu 2026-11-25 14:45 trong tmux cửa sổ `fmriprep-test`: workflow dựng OK, SyN-SDC (EstimatorType.ANAT) và slice timing bật, FreeSurfer đang chạy. Mục đích: bắt lỗi kỹ thuật, đo thời gian và RAM, chưa phải pilot.
+- MCI: **tạm chưa đụng**, chờ khoinguyen xác nhận bản final.
 
 Việc tiếp theo:
 1. Chốt các quyết định: ngưỡng thời lượng BOLD, multiband, Philips (slice timing, PED), danh sách ưu tiên T1.
