@@ -14,9 +14,10 @@ set -euo pipefail
 SELF=$(readlink -f "$0")
 source "$(dirname "$SELF")/../config/paths.sh"
 
-THREADS=4                                  # core mỗi subject
-MEM_GB=14                                  # RAM mỗi subject
-JOBS=$(( MAX_CPUS / THREADS ))             # số subject chạy song song (18/4 = 4)
+THREADS=2                                  # core mỗi subject (MRIQC thực tế dùng ~1–1.6 core)
+MEM_GB=8                                   # RAM mỗi subject (thực tế < 2 GB)
+JOBS=$(( MAX_CPUS / THREADS ))             # số subject chạy song song (26/2 = 13)
+# Đổi số job khi đang chạy, không cần dừng:  pkill -USR1 -u $(id -u) -x xargs  (+1)  |  -USR2 (−1)
 OUT=$DERIV_DIR/mriqc
 WRK=$WORK_TMP/mriqc
 LOGD=$LOG_DIR/mriqc

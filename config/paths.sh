@@ -15,6 +15,7 @@ export IMG_MRIQC=nipreps/mriqc:24.0.2
 export IMG_FMRIPREP=nipreps/fmriprep:25.2.7
 export IMG_XCPD=pennlinc/xcp_d:26.3.0
 
-# Máy dùng chung: giới hạn tổng tài nguyên
-export MAX_CPUS=18
-export MAX_MEM_GB=72
+# Máy dùng chung (32 core, 125 GB), 2 người khác dùng ít → ưu tiên dự án này nhưng chừa phần cho họ.
+# Còn ~6 core / 25 GB cho người khác. Thấy họ chạy nặng thì giảm job (xem từng script).
+export MAX_CPUS=26
+export MAX_MEM_GB=100
