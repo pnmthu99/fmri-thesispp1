@@ -15,7 +15,8 @@ SELF=$(readlink -f "$0")
 source "$(dirname "$SELF")/../config/paths.sh"
 
 THREADS=2                                  # core mỗi subject (MRIQC thực tế dùng ~1–1.6 core)
-MEM_GB=8                                   # RAM mỗi subject (thực tế < 2 GB)
+MEM_GB=${MRIQC_MEM_GB:-16}                 # RAM tối đa mỗi subject. 8 GB bị OOM ở synthstrip (T1 lớn)
+TIMEOUT=${MRIQC_TIMEOUT:-3h}               # OOM ở tiến trình con có thể làm MRIQC treo vô hạn
 JOBS=${MRIQC_JOBS:-$(( MAX_CPUS / THREADS ))}  # số subject song song (mặc định 26/2 = 13)
 # Đổi số job khi đang chạy, không cần dừng:  pkill -USR1 -u $(id -u) -x xargs  (+1)  |  -USR2 (−1)
 OUT=$DERIV_DIR/mriqc
@@ -26,7 +27,7 @@ mkdir -p "$OUT" "$WRK" "$LOGD"
 run_docker() {  # $1 = tên container (= tên thư mục work riêng), còn lại = tham số mriqc
     local name=$1; shift
     mkdir -p "$WRK/$name"
-    docker run --rm --name "$name" \
+    timeout -k 60 "$TIMEOUT" docker run --rm --name "$name" \
         -u "$(id -u):$(id -g)" -e HOME=/tmp \
         --cpus "$THREADS" --memory "${MEM_GB}g" \
         -v "$BIDS_DIR":/data:ro -v "$OUT":/out -v "$WRK/$name":/work \
@@ -46,6 +47,7 @@ one() {  # chạy 1 subject
         rm -rf "${WRK:?}/mriqc_$sub"
         echo "$(date '+%F %T') XONG    $sub" | tee -a "$LOGD/_progress.log"
     else
+        docker rm -f "mriqc_$sub" >/dev/null 2>&1 || true   # dọn container nếu bị timeout
         touch "$LOGD/$sub.failed"
         echo "$(date '+%F %T') LỖI     $sub  (xem $log)" | tee -a "$LOGD/_progress.log"
     fi
