@@ -102,6 +102,16 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
 - MCI: khoinguyen đã xác nhận bản hiện tại là final → đang giải nén, gộp, audit.
 - CN: khoinguyen đang chuẩn bị bản final. **Xử lý trên chính máy này, cùng hàng đợi, cùng script** (không chia máy, vì CN là nhóm tham chiếu của normative model).
 
+- MCI đã gộp (395 subject, không trùng RID). Tổng 517 subject: 347 đúng 1 cặp, 163 cần chọn ảnh, 7 thiếu ảnh. AD và MCI rất cân bằng về hãng máy (Siemens 66/64%, Philips 20/22%, GE 14/14%), multiband (39/39%) và TR. MRIQC MCI tự chạy sau AD (tmux `mriqc-mci`, `MRIQC_JOBS=9`).
+- Review pipeline 2026-11-25, **cần chốt trước pilot** (đề xuất trong ngoặc):
+  1. Slice timing: Philips (22% BOLD) không có SliceTiming → (`--ignore slicetiming` cho tất cả, để đồng nhất).
+  2. SDC: Philips không có PhaseEncodingDirection → SyN-SDC bị bỏ qua ở Philips → (pilot so sánh trên vài subject: SyN cho tất cả sau khi bổ sung PED cho Philips, hoặc không SDC cho tất cả).
+  3. Motion: multiband TR 0.6–0.8 s có nhiễu hô hấp trong tham số motion làm FD tăng giả → (XCP-D `--motion-filter-type notch` cho run TR < 1 s; kiểm tra phân bố FD theo protocol trong pilot).
+  4. Độ dài scan khác nhau (4.9–10 phút) → (lưu parcel timeseries đã censor, tự tính FC trong `02_features`; làm thêm phân tích độ nhạy cắt về cùng thời lượng).
+  5. XCP-D `--mode none`: khai báo đủ `--file-format cifti --input-type fmriprep --atlases 4S256Parcels --nuisance-regressors 36P --despike y --lower-bpf 0.01 --upper-bpf 0.08 --bpf-order 2 --fd-thresh 0.5 --min-time 240 --output-type censored --dummy-scans auto --smoothing 0 --min-coverage 0.5 --linc-qc y --abcc-qc n`. Kiểm tra ALFF được tính trên dữ liệu nào.
+  6. MRIQC outlier theo lớp protocol (hãng máy × multiband), không chỉ theo hãng; xem trực quan báo cáo của ảnh bị đánh dấu và một mẫu ngẫu nhiên. FreeSurfer: Euler + xem trực quan, chú ý AD (teo não).
+  7. Harmonization: nhiều site nhỏ → ComBat theo scanner/protocol thay vì từng site. Vẫn cần tuổi, giới (ADNIMERGE theo RID).
+
 Việc tiếp theo:
 1. Chốt các quyết định: ngưỡng thời lượng BOLD, multiband, Philips (slice timing, PED), danh sách ưu tiên T1.
 2. Viết và chạy MRIQC cho AD.

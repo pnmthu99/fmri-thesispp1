@@ -16,7 +16,7 @@ source "$(dirname "$SELF")/../config/paths.sh"
 
 THREADS=2                                  # core mỗi subject (MRIQC thực tế dùng ~1–1.6 core)
 MEM_GB=8                                   # RAM mỗi subject (thực tế < 2 GB)
-JOBS=$(( MAX_CPUS / THREADS ))             # số subject chạy song song (26/2 = 13)
+JOBS=${MRIQC_JOBS:-$(( MAX_CPUS / THREADS ))}  # số subject song song (mặc định 26/2 = 13)
 # Đổi số job khi đang chạy, không cần dừng:  pkill -USR1 -u $(id -u) -x xargs  (+1)  |  -USR2 (−1)
 OUT=$DERIV_DIR/mriqc
 WRK=$WORK_TMP/mriqc
