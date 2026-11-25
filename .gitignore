@@ -1,0 +1,8 @@
+*.nii
+*.nii.gz
+*.tar.gz
+*.csv
+license.txt
+logs/
+__pycache__/
+.ipynb_checkpoints/
