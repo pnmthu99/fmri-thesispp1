@@ -99,7 +99,8 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
 - MRIQC AD đang chạy (`01_preprocess/03_mriqc.sh`, 2 core / 8 GB mỗi subject, khoảng 11 phút/subject). Giới hạn chung tăng lên 26 core / 100 GB (2 user khác dùng < 1 core).
 - `01_preprocess/04_fmriprep.sh`: chạy fMRIPrep theo từng subject, chạy lại được, dọn `IsRunning`, nhận `$WORK/filters/<sub>.json` nếu có, TemplateFlow chung ở `$WORK/templateflow`. Mặc định 8 core / 32 GB.
 - **Chạy thử fMRIPrep sub-6179** (Siemens Skyra, TR 3 s, 197 vol) bắt đầu 2026-11-25 14:45 trong tmux cửa sổ `fmriprep-test`: workflow dựng OK, SyN-SDC (EstimatorType.ANAT) và slice timing bật, FreeSurfer đang chạy. Mục đích: bắt lỗi kỹ thuật, đo thời gian và RAM, chưa phải pilot.
-- MCI: **tạm chưa đụng**, chờ khoinguyen xác nhận bản final.
+- MCI: khoinguyen đã xác nhận bản hiện tại là final → đang giải nén, gộp, audit.
+- CN: khoinguyen đang chuẩn bị bản final. **Xử lý trên chính máy này, cùng hàng đợi, cùng script** (không chia máy, vì CN là nhóm tham chiếu của normative model).
 
 Việc tiếp theo:
 1. Chốt các quyết định: ngưỡng thời lượng BOLD, multiband, Philips (slice timing, PED), danh sách ưu tiên T1.
