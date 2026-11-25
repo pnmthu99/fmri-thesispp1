@@ -125,6 +125,7 @@ Việc tiếp theo:
 4. Viết runner nối fMRIPrep → XCP-D tự động theo từng subject.
 5. CN: khi có bản final → `00_extract cn` → `01_merge cn` → audit → MRIQC.
 6. Lấy tuổi, giới (ADNIMERGE theo RID).
+7. (Hoãn đến khi có đợt bổ sung AD/MCI) Sửa `00_extract.sh` nhận tên tarball tùy ý (vd `ad_bids_batch2.tar.gz`) và `01_merge_bids.sh` tách nhãn nhóm khỏi tên thư mục; báo ra subject đã có mà đợt mới thêm ảnh (hiện bị bỏ qua lặng lẽ) để chọn ảnh/chạy lại. Đợt mới nên là tarball riêng chỉ chứa subject mới.
 
 Lưu ý dữ liệu ADNI: Claude chỉ đọc metadata (tên file, JSON, bảng), không đọc nội dung ảnh.
 
