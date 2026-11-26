@@ -118,13 +118,21 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
   - **sub-6264 (AD): file BOLD hỏng ngay trong tarball gốc** (gzip bị cắt cụt, 32112640 byte). Cần khoinguyen chuyển đổi lại. Đang kiểm tra gzip mọi file → `$WORK/audit/gzip_check.tsv`.
   - Số trong `sub-XXXX` là RID: 395/405 thư mục PTID trong `mci_bids/sourcedata` khớp `sub-<phần số cuối PTID>`.
 
+- **2026-11-26: MRIQC xong** (516/517; chỉ sub-6264 lỗi do BOLD hỏng). Kiểm tra gzip 1214 ảnh: chỉ file đó hỏng. Group report ở `derivatives/mriqc/group_{T1w,bold}.{tsv,html}`.
+- **Chọn ảnh xong** (`01_preprocess/03b_select.py` → `$WORK/selection/`, `$WORK/filters/<sub>.json` cho mọi subject được chọn):
+  - Chọn được **509/517** (AD 114, MCI 395). Loại 8 AD: 6 không có BOLD, 1 không có T1, sub-6264 (file hỏng).
+  - Outlier Tukey theo lớp protocol (BOLD: hãng × MB; T1: hãng × MPRAGE/IR-FSPGR), chỉ phía xấu; nhẹ 1.5·IQR, nặng 3·IQR. T1: cjv, cnr, efc, qi_1, snr_total (bỏ fber vì = -1 ở 312/686 T1). BOLD: fd_mean, tsnr, dvars_std, aor, aqi, efc.
+  - T1 ưu tiên: chuẩn (Accelerated MPRAGE / Philips MPRAGE / IR-FSPGR) > Philips SENSE2 > HS/CS (ADNI4) > _ND/ORIG; outlier nặng xuống cuối; rồi CNR. BOLD: outlier nặng xuống cuối, rồi dài nhất, rồi fd_mean.
+  - **88 subject được chọn có ảnh outlier (27 nặng)** → `selection/qc_review.tsv`, cần xem báo cáo MRIQC bằng mắt trước khi quyết định loại. Outlier chủ yếu: BOLD aor/aqi/fd_mean, T1 cjv.
+  - fd_mean trung vị AD > MCI ở mọi lớp (vd Siemens MB 0.214 vs 0.161) → motion là biến gây nhiễu cần kiểm soát.
+
 Việc tiếp theo:
 1. Chốt 7 điểm review ở trên (chờ người dùng).
-2. MRIQC AD + MCI xong → group report, outlier theo lớp protocol, script chọn ảnh (163 subject) → `manifest.tsv`, `filters/<sub>.json`.
+2. Xem bằng mắt 27 subject outlier nặng (báo cáo MRIQC HTML), quyết định loại hay giữ.
 3. Chọn tài nguyên fMRIPrep từ lần chạy thử, pilot 10–20 subject phủ Siemens/GE/Philips/multiband.
 4. Viết runner nối fMRIPrep → XCP-D tự động theo từng subject.
-5. CN: khi có bản final → `00_extract cn` → `01_merge cn` → audit → MRIQC.
-6. Lấy tuổi, giới (ADNIMERGE theo RID).
+5. CN: khi có bản final → `00_extract cn` → `01_merge cn` → audit → MRIQC → chạy lại `03b_select.py` (tính lại ngưỡng outlier trên toàn bộ).
+6. Lấy tuổi, giới (ADNIMERGE theo RID). Báo khoinguyen chuyển đổi lại sub-6264.
 7. (Hoãn đến khi có đợt bổ sung AD/MCI) Sửa `00_extract.sh` nhận tên tarball tùy ý (vd `ad_bids_batch2.tar.gz`) và `01_merge_bids.sh` tách nhãn nhóm khỏi tên thư mục; báo ra subject đã có mà đợt mới thêm ảnh (hiện bị bỏ qua lặng lẽ) để chọn ảnh/chạy lại. Đợt mới nên là tarball riêng chỉ chứa subject mới.
 
 Lưu ý dữ liệu ADNI: Claude chỉ đọc metadata (tên file, JSON, bảng), không đọc nội dung ảnh.
