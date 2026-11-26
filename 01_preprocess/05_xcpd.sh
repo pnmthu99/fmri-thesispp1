@@ -5,6 +5,7 @@
 #   bash 01_preprocess/05_xcpd.sh sub-6854 ...      # các subject liệt kê
 #   bash 01_preprocess/05_xcpd.sh --list file.txt   # danh sách subject
 #   bash 01_preprocess/05_xcpd.sh --retry-failed
+#   bash 01_preprocess/05_xcpd.sh --alff sub-6854 ...  # chỉ tính (lại) ALFF từ output có sẵn
 #   bash 01_preprocess/05_xcpd.sh --follow          # TỰ NỐI TIẾP: cứ subject nào xong fMRIPrep
 #                                                   # (logs/fmriprep/<sub>.done) là chạy XCP-D;
 #                                                   # dừng khi fMRIPrep hết việc và không còn gì chờ
@@ -15,6 +16,8 @@
 #   CIFTI fsLR-91k, atlas 4S256Parcels (dùng index 1–200 = Schaefer-200), 36P, despike,
 #   censor FD > 0.5 mm, loại run còn < 240 s sau censor, band-pass 0.01–0.08 Hz (cần cho ALFF),
 #   không smoothing, output censored (FC tính trên frame thật, không nội suy).
+#   ALFF: XCP-D chạy --skip alff (hàm ALFF của XCP-D mất ~11 giờ CPU cho run 973 volume), ALFF tính
+#   ngay sau đó bằng 05b_alff.py: cùng công thức, vài giây. Run còn < 240 s sạch → <sub>.excluded.
 # Mỗi container chỉ thấy đúng thư mục fMRIPrep của subject đó (khỏi index cả 500 subject).
 set -euo pipefail
 SELF=$(readlink -f "$0")
@@ -33,7 +36,7 @@ mkdir -p "$OUT" "$WRK" "$LOGD"
 
 one() {
     local sub=$1 log=$LOGD/$1.log
-    [[ -f $LOGD/$sub.done ]] && return 0
+    [[ -f $LOGD/$sub.done || -f $LOGD/$sub.excluded ]] && return 0
     # đang chạy ở hàng đợi khác (vd --follow và --list song song) thì bỏ qua, tránh trùng container
     [[ -n $(docker ps -q -f "name=^xcpd_${sub}\$") ]] && { echo "$sub đang chạy ở nơi khác, bỏ qua"; return 0; }
     [[ -d $FMP/$sub ]] || { echo "Chưa có output fMRIPrep cho $sub"; return 1; }
@@ -60,48 +63,78 @@ one() {
         --dummy-scans auto \
         -f 0.5 --censor-between 0 --min-time 240 --output-type censored \
         --lower-bpf 0.01 --upper-bpf 0.08 --bpf-order 2 \
+        --skip alff \
         "${mf[@]}" \
         --combine-runs n --output-run-wise-correlations y --warp-surfaces-native2std n \
         --linc-qc y --abcc-qc n \
         --fs-license-file /license.txt \
         --nprocs "$THREADS" --omp-nthreads "$THREADS" --mem-mb "$(( MEM_GB * 1000 - 1000 ))" \
         --resource-monitor --notrack -w /work \
-        >"$log" 2>&1; then
+        >"$log" 2>&1 && alff "$sub" >>"$log" 2>&1; then
         date '+%F %T' > "$LOGD/$sub.done"
         rm -rf "${WRK:?}/$sub"
         echo "$(date '+%F %T') XONG    $sub" | tee -a "$LOGD/_progress.log"
+    elif grep -q 'No runs survived high-motion outlier scrubbing' "$log"; then
+        # không phải lỗi: còn < 240 s sạch sau censor → loại theo quy tắc, ghi vào .excluded
+        grep -o 'survive high-motion outlier scrubbing ([0-9.]*)' "$log" | head -1 > "$LOGD/$sub.excluded"
+        rm -rf "${WRK:?}/$sub"
+        echo "$(date '+%F %T') LOẠI    $sub  (< 240 s sạch sau censor)" | tee -a "$LOGD/_progress.log"
     else
         touch "$LOGD/$sub.failed"
         echo "$(date '+%F %T') LỖI     $sub  (xem $log)" | tee -a "$LOGD/_progress.log"
     fi
 }
 
+alff() {  # ALFF từ output đã denoise + censor của XCP-D (01_preprocess/05b_alff.py), vài giây/subject
+    docker run --rm --name "alff_$1" -u "$(id -u):$(id -g)" -e HOME=/tmp --cpus "$THREADS" \
+        -v "$(dirname "$SELF")":/code:ro -v "$OUT":/out --entrypoint python \
+        "$IMG_XCPD" /code/05b_alff.py /out "$1"
+}
+
+pending() {  # $@ = subjects → in ra subject chưa có done/failed/excluded
+    for s in "$@"; do
+        [[ -f $LOGD/$s.done || -f $LOGD/$s.failed || -f $LOGD/$s.excluded ]] || echo "$s"
+    done
+}
+
 run_queue() {  # $@ = subjects
-    local todo=()
-    for s in "$@"; do [[ -f $LOGD/$s.done || -f $LOGD/$s.failed ]] || todo+=("$s"); done
+    local todo; mapfile -t todo < <(pending "$@")
     [[ ${#todo[@]} -eq 0 ]] && return 0
     echo "XCP-D: ${#todo[@]} subject, $JOBS song song × $THREADS core, ${MEM_GB} GB, motion filter=$MFILT. Log: $LOGD"
     printf "%s\n" "${todo[@]}" | xargs -P "$JOBS" -I{} bash "$SELF" --one {}
 }
 
+fmriprep_done() { ls "$LOG_DIR"/fmriprep/*.done 2>/dev/null | xargs -rn1 basename | sed 's/\.done$//'; }
+
 case "${1:-}" in
     --one)          one "$2"; exit 0 ;;
+    --alff)         shift; for s in "$@"; do alff "$s"; done; exit 0 ;;   # chỉ tính lại ALFF
     --list)         mapfile -t SUBS < <(grep -v '^\s*$' "$2"); run_queue "${SUBS[@]}" ;;
     --retry-failed) mapfile -t SUBS < <(ls "$LOGD"/*.failed 2>/dev/null | xargs -rn1 basename | sed 's/\.failed$//')
                     rm -f "$LOGD"/*.failed; run_queue "${SUBS[@]}" ;;
     --follow)
+        # Không chờ cả đợt: cứ có chỗ trống (< JOBS job) là nhận ngay subject vừa xong fMRIPrep.
+        declare -A started=()
         while true; do
-            mapfile -t READY < <(ls "$LOG_DIR"/fmriprep/*.done 2>/dev/null | xargs -rn1 basename | sed 's/\.done$//')
-            run_queue "${READY[@]}"
+            mapfile -t TODO < <(pending $(fmriprep_done))
+            for s in "${TODO[@]}"; do
+                [[ -n ${started[$s]:-} ]] && continue
+                while (( $(jobs -rp | wc -l) >= JOBS )); do sleep 30; done
+                started[$s]=1
+                bash "$SELF" --one "$s" &
+            done
             if ! docker ps --format '{{.Names}}' | grep -q '^fmriprep_'; then
-                # fMRIPrep không còn chạy: chạy nốt subject vừa xong rồi dừng
-                mapfile -t READY < <(ls "$LOG_DIR"/fmriprep/*.done 2>/dev/null | xargs -rn1 basename | sed 's/\.done$//')
-                run_queue "${READY[@]}"
-                echo "$(date '+%F %T') fMRIPrep hết việc, dừng --follow"; break
+                mapfile -t TODO < <(pending $(fmriprep_done))
+                left=0; for s in "${TODO[@]}"; do [[ -n ${started[$s]:-} ]] || left=1; done
+                if (( left == 0 )); then
+                    wait
+                    echo "$(date '+%F %T') fMRIPrep hết việc, dừng --follow"; break
+                fi
+                continue
             fi
             sleep 300
         done ;;
-    "")             echo "Cần chỉ rõ subject, --list, --retry-failed hoặc --follow."; exit 1 ;;
+    "")             echo "Cần chỉ rõ subject, --list, --retry-failed, --alff hoặc --follow."; exit 1 ;;
     *)              run_queue "$@" ;;
 esac
-echo "XCP-D: done=$(ls "$LOGD"/*.done 2>/dev/null | wc -l), failed=$(ls "$LOGD"/*.failed 2>/dev/null | wc -l)"
+echo "XCP-D: done=$(ls "$LOGD"/*.done 2>/dev/null | wc -l), excluded=$(ls "$LOGD"/*.excluded 2>/dev/null | wc -l), failed=$(ls "$LOGD"/*.failed 2>/dev/null | wc -l)"
