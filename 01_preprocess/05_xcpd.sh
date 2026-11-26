@@ -34,6 +34,8 @@ mkdir -p "$OUT" "$WRK" "$LOGD"
 one() {
     local sub=$1 log=$LOGD/$1.log
     [[ -f $LOGD/$sub.done ]] && return 0
+    # đang chạy ở hàng đợi khác (vd --follow và --list song song) thì bỏ qua, tránh trùng container
+    [[ -n $(docker ps -q -f "name=^xcpd_${sub}\$") ]] && { echo "$sub đang chạy ở nơi khác, bỏ qua"; return 0; }
     [[ -d $FMP/$sub ]] || { echo "Chưa có output fMRIPrep cho $sub"; return 1; }
     rm -f "$LOGD/$sub.failed"
     mkdir -p "$WRK/$sub"
