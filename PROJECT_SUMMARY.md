@@ -139,6 +139,10 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
   - sub-6179 (test cũ) đã chạy CÓ slice timing → lượt chính thức phải chạy lại phần BOLD (FreeSurfer dùng lại).
   - Báo cáo MRIQC: `derivatives/mriqc/sub-*_{T1w,bold}.html` (thư mục gốc, không nằm trong `sub-*/`). Mục lục cần xem: `derivatives/mriqc/_qc_review.html`; ghi quyết định vào `selection/qc_visual.tsv`.
   - Cần xem sau pilot: thời gian/RAM, SDC Philips, % frame bị censor theo protocol (quyết định notch filter), lỗi FreeSurfer.
+  - sub-10871, sub-10859, sub-6669 lỗi filter lúc 09:53 (trước khi sửa) → chạy lại 10:50 ở tmux `fmriprep-retry`.
+  - Marker `logs/fmriprep/sub-6179.done` đổi thành `.done_test_with_stc` → lượt chính thức chạy lại sub-6179.
+- **`01_preprocess/05_xcpd.sh`** (2026-11-26): XCP-D theo từng subject, `--mode none` với đủ tham số (CIFTI, 4S256Parcels, 36P, despike, FD 0.5, `--censor-between 0`, `--min-time 240`, censored, 0.01–0.08 Hz, không smoothing, run-wise FC, linc-qc). Mỗi container chỉ mount `fmriprep/sub-X` + `dataset_description.json`. `--follow`: tự chạy XCP-D cho subject vừa xong fMRIPrep, dừng khi fMRIPrep hết việc. `XCPD_MOTION_FILTER=notch` (12–18 bpm) chờ quyết định từ pilot. Chạy thử trên sub-6179 vào `$WORK_TMP/xcpd_test` (không lẫn output thật): **OK, 7 phút**. Timeseries 191 frame (6 bị censor) × 256 parcel (cột 1–200 = Schaefer, không parcel nào NaN), FC 256×256, ALFF 1×256. Tương quan FD–DVARS 0.63 → 0.07 sau denoise. **ALFF = Lomb-Scargle trên dữ liệu đã censor (không nội suy), 0.01–0.08 Hz** → review mục 5 xong.
+  - Từ 2026-11-26 11:15: tmux `xcpd` chạy `05_xcpd.sh --follow` (3 job × 4 core) cho pilot.
 
 Việc tiếp theo:
 1. Chốt 7 điểm review ở trên (chờ người dùng).
