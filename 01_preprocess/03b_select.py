@@ -84,8 +84,10 @@ def flag_outliers(df: pd.DataFrame, iqms: dict, cls: str) -> pd.DataFrame:
 def entities(fname: str) -> dict:
     acq = re.search(r"_acq-([A-Za-z0-9]+)", fname)
     run = re.search(r"_run-([0-9]+)", fname)
-    return {"acquisition": acq.group(1) if acq else None,
-            "run": int(run.group(1)) if run else None}
+    # fMRIPrep 25.2 chỉ nhận chuỗi: entity vắng mặt phải ghi "<Query.NONE: 1>" (null / số nguyên làm nó lỗi)
+    none = "<Query.NONE: 1>"
+    return {"acquisition": acq.group(1) if acq else none,
+            "run": run.group(1) if run else none}
 
 
 def main():

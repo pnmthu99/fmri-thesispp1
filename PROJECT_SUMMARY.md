@@ -133,6 +133,13 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
   - Euler: chỉ loại outlier cực đoan theo protocol, sau khi xem bằng mắt.
   - Vì AD chuyển động nhiều hơn: kiểm tra model không học motion (tương quan output với fd_mean, đánh giá trên tập motion-matched).
 
+- **Pilot fMRIPrep bắt đầu 2026-11-26 09:52** (tmux `fmriprep-pilot`, 6 song song × 4 core × 16 GB, `--ignore slicetiming`). 16 subject (8 AD, 8 MCI) trong `selection/pilot.txt`, chọn ngẫu nhiên seed 42 theo cấu hình: Siemens MB TR 0.607 ×2, 0.788 ×1, Siemens SB ×1, GE SB ×2, GE MB (TR 1.5) ×2, Philips 48 lát TR 3 ×2, 36 lát TR 2.25, 51 lát TR 1.5, TR 6.02; ca khó sub-7021 (FD 1.08) và sub-5231 (Philips FD 3.7); sub-4679 (Philips phải chọn T1).
+  - Lỗi đã sửa: filter fMRIPrep 25.2 chỉ nhận chuỗi; entity vắng mặt ghi `"<Query.NONE: 1>"`, run ghi `"01"`. Đã kiểm tra bằng `--boilerplate-only` (sub-6669 chọn đúng run-01). sub-6669 được xếp chạy lại sau hàng đợi.
+  - 6 BOLD Siemens cũng thiếu PhaseEncodingDirection (như Philips) → chạy không SDC (vd sub-6665).
+  - sub-6179 (test cũ) đã chạy CÓ slice timing → lượt chính thức phải chạy lại phần BOLD (FreeSurfer dùng lại).
+  - Báo cáo MRIQC: `derivatives/mriqc/sub-*_{T1w,bold}.html` (thư mục gốc, không nằm trong `sub-*/`). Mục lục cần xem: `derivatives/mriqc/_qc_review.html`; ghi quyết định vào `selection/qc_visual.tsv`.
+  - Cần xem sau pilot: thời gian/RAM, SDC Philips, % frame bị censor theo protocol (quyết định notch filter), lỗi FreeSurfer.
+
 Việc tiếp theo:
 1. Chốt 7 điểm review ở trên (chờ người dùng).
 2. Xem bằng mắt 27 subject outlier nặng (báo cáo MRIQC HTML), quyết định loại hay giữ.

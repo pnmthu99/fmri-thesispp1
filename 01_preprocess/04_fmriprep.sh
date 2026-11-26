@@ -5,7 +5,10 @@
 #   bash 01_preprocess/04_fmriprep.sh sub-6179 ...     # các subject liệt kê
 #   bash 01_preprocess/04_fmriprep.sh --list file.txt  # danh sách subject (mỗi dòng 1 sub)
 #   bash 01_preprocess/04_fmriprep.sh --retry-failed
-#   Tùy chỉnh tài nguyên:  FMRIPREP_THREADS=8 FMRIPREP_MEM_GB=32 FMRIPREP_JOBS=2 bash ...
+#   Tùy chỉnh tài nguyên:  FMRIPREP_THREADS=4 FMRIPREP_MEM_GB=16 FMRIPREP_JOBS=6 bash ...
+#   Slice timing:  mặc định TẮT cho mọi subject (FMRIPREP_IGNORE=slicetiming), vì 100% BOLD Philips
+#   thiếu SliceTiming → bật ở một phần sẽ trùng với hãng máy. Nếu bổ sung được SliceTiming cho Philips
+#   (bảng MAYOADIRL_MRI_FMRI_NFQ) thì chạy với FMRIPREP_IGNORE="" để bật cho tất cả.
 #
 # Chạy lại được: có $LOG_DIR/fmriprep/<sub>.done thì bỏ qua. Trước khi chạy, xóa file IsRunning
 # của FreeSurfer (còn sót nếu lần trước bị dừng giữa chừng) để recon-all chạy tiếp được.
@@ -15,8 +18,9 @@ set -euo pipefail
 SELF=$(readlink -f "$0")
 source "$(dirname "$SELF")/../config/paths.sh"
 
-THREADS=${FMRIPREP_THREADS:-8}
-MEM_GB=${FMRIPREP_MEM_GB:-32}
+THREADS=${FMRIPREP_THREADS:-4}     # FreeSurfer phần lớn đơn luồng; 8 core: sub-6179 mất 2 giờ 42 phút
+MEM_GB=${FMRIPREP_MEM_GB:-16}
+IGNORE=${FMRIPREP_IGNORE-slicetiming}
 JOBS=${FMRIPREP_JOBS:-$(( MAX_CPUS / THREADS ))}
 OUT=$DERIV_DIR/fmriprep
 WRK=$WORK_TMP/fmriprep
@@ -32,7 +36,8 @@ one() {
     rm -f "$FS_DIR/$sub"/scripts/IsRunning.* 2>/dev/null || true
     mkdir -p "$WRK/$sub"
 
-    local filt=() fmount=()
+    local filt=() fmount=() ign=()
+    [[ -n $IGNORE ]] && ign=(--ignore $IGNORE)
     if [[ -f $FILTERS/$sub.json ]]; then
         fmount=(-v "$FILTERS/$sub.json":/filter.json:ro); filt=(--bids-filter-file /filter.json)
     fi
@@ -48,7 +53,7 @@ one() {
         --participant-label "${sub#sub-}" "${filt[@]}" \
         --fs-license-file /license.txt --fs-subjects-dir /fs \
         --output-spaces MNI152NLin6Asym:res-2 --cifti-output 91k \
-        --use-syn-sdc warn \
+        --use-syn-sdc warn "${ign[@]}" \
         --skip-bids-validation \
         --nthreads "$THREADS" --omp-nthreads "$(( THREADS < 8 ? THREADS : 8 ))" \
         --mem-mb "$(( MEM_GB * 1000 - 2000 ))" \
@@ -73,7 +78,7 @@ esac
 
 TODO=()
 for s in "${SUBS[@]}"; do [[ -f $LOGD/$s.done ]] || TODO+=("$s"); done
-echo "fMRIPrep: ${#TODO[@]} subject, $JOBS song song × $THREADS core, ${MEM_GB} GB/subject. Log: $LOGD"
+echo "fMRIPrep: ${#TODO[@]} subject, $JOBS song song × $THREADS core, ${MEM_GB} GB/subject, ignore='${IGNORE}'. Log: $LOGD"
 [[ ${#TODO[@]} -eq 0 ]] && exit 0
 printf "%s\n" "${TODO[@]}" | xargs -P "$JOBS" -I{} bash "$SELF" --one {}
 echo "Hết hàng đợi: done=$(ls "$LOGD"/*.done 2>/dev/null | wc -l), failed=$(ls "$LOGD"/*.failed 2>/dev/null | wc -l)"
