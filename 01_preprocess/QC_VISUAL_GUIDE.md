@@ -1,5 +1,7 @@
 # Hướng dẫn QC bằng mắt (MRIQC, sau đó fMRIPrep)
 
+**Cập nhật 2026-11-26: KHÔNG xem bằng mắt báo cáo MRIQC** (MRIQC chỉ dùng tự động, như Rutherford et al. 2026); phần T1w/BOLD dưới đây giữ lại để tham khảo khi xem báo cáo fMRIPrep.
+
 Chính sách đã chốt (2026-11-26): **chỉ loại dữ liệu thật sự không dùng được**. Khi phân vân thì GIỮ,
 ghi `doubtful`, để fMRIPrep / XCP-D quyết định tiếp (FreeSurfer lỗi, < 4 phút sạch sau censor).
 Dựa trên: Provins et al. 2023 (Front. Neuroimaging, QC protocol MRIQC + fMRIPrep), tài liệu MRIQC,

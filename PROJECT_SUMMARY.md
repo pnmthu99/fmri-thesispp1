@@ -128,7 +128,7 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
 
 - **Chính sách QC ĐÃ CHỐT 2026-11-26 (giữ mẫu tối đa, chỉ loại dữ liệu thật sự không dùng được)**. Tham khảo chính: Rutherford et al. 2026, "A Pipeline for ADNI Resting-State Functional MRI Processing and Quality Control" (arXiv 2602.03278; ADNI GO/2/3, fMRIPrep + MRIQC): giữ 2026/2611 session (78%). Họ loại: outlier MRIQC ở ±4 SD sau biến đổi SHASH (9% session), FreeSurfer/fMRIPrep lỗi, Euler outlier theo site, > 30% frame bị censor (FD > 0.5 mm) hoặc < 5 phút sạch. Philips thiếu PED → chạy lại không SDC, giữ lại và gắn cờ.
   - Loại cứng: file hỏng, thiếu cặp, FreeSurfer/fMRIPrep lỗi không sửa được, đăng ký ảnh hỏng khi xem bằng mắt.
-  - MRIQC: KHÔNG tự loại theo ngưỡng; chỉ xem bằng mắt 27 subject outlier nặng (3·IQR trong lớp protocol, ≈ ngưỡng ±4 SD của Rutherford), loại khi thấy artifact rõ.
+  - MRIQC: KHÔNG tự loại theo ngưỡng. **Chốt 2026-11-26: bỏ bước xem bằng mắt báo cáo MRIQC** (như Rutherford: MRIQC chỉ dùng tự động); outlier chỉ dùng để ưu tiên khi chọn ảnh và được ghi lại (`selection/qc_review.tsv`). Xem bằng mắt chuyển sang báo cáo fMRIPrep của subject có vấn đề (lỗi, Euler xấu, nhiều frame bị censor).
   - Motion: chính = còn ≥ 4 phút sau censor FD > 0.5 mm (lỏng hơn Rutherford 5 phút, để giữ run multiband 4.9 phút); fd_mean làm covariate. Độ nhạy: tiêu chí Rutherford (≤ 30% censor, ≥ 5 phút) và tiêu chí chặt (mean FD ≤ 0.25 mm).
   - Euler: chỉ loại outlier cực đoan theo protocol, sau khi xem bằng mắt.
   - Vì AD chuyển động nhiều hơn: kiểm tra model không học motion (tương quan output với fd_mean, đánh giá trên tập motion-matched).
@@ -142,7 +142,7 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
 
 Việc tiếp theo:
 1. Chốt 7 điểm review ở trên (chờ người dùng).
-2. Xem bằng mắt 27 subject outlier nặng (báo cáo MRIQC HTML), quyết định loại hay giữ.
+2. (Đã bỏ) Xem bằng mắt MRIQC. Thay bằng xem báo cáo fMRIPrep của subject có vấn đề sau khi chạy.
 3. Chọn tài nguyên fMRIPrep từ lần chạy thử, pilot 10–20 subject phủ Siemens/GE/Philips/multiband.
 4. Viết runner nối fMRIPrep → XCP-D tự động theo từng subject.
 5. CN: khi có bản final → `00_extract cn` → `01_merge cn` → audit → MRIQC → chạy lại `03b_select.py` (tính lại ngưỡng outlier trên toàn bộ).
