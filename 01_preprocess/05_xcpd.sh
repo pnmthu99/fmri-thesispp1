@@ -17,7 +17,9 @@
 #   censor FD > 0.5 mm, loại run còn < 240 s sau censor, band-pass 0.01–0.08 Hz (cần cho ALFF),
 #   không smoothing, output censored (FC tính trên frame thật, không nội suy).
 #   ALFF: XCP-D chạy --skip alff (hàm ALFF của XCP-D mất ~11 giờ CPU cho run 973 volume), ALFF tính
-#   ngay sau đó bằng 05b_alff.py: cùng công thức, vài giây. Run còn < 240 s sạch → <sub>.excluded.
+#   ngay sau đó bằng 05b_alff.py: cùng công thức, vài giây.
+#   Loại (ghi <sub>.excluded, không phải lỗi): còn < 240 s sạch (mặc định XCP-D), hoặc
+#   > 30% frame bị cắt (Rutherford et al. 2026; XCPD_MAX_CENSORED). Output của run > 30% vẫn giữ.
 # Mỗi container chỉ thấy đúng thư mục fMRIPrep của subject đó (khỏi index cả 500 subject).
 set -euo pipefail
 SELF=$(readlink -f "$0")
@@ -71,9 +73,8 @@ one() {
         --nprocs "$THREADS" --omp-nthreads "$THREADS" --mem-mb "$(( MEM_GB * 1000 - 1000 ))" \
         --resource-monitor --notrack -w /work \
         >"$log" 2>&1 && alff "$sub" >>"$log" 2>&1; then
-        date '+%F %T' > "$LOGD/$sub.done"
         rm -rf "${WRK:?}/$sub"
-        echo "$(date '+%F %T') XONG    $sub" | tee -a "$LOGD/_progress.log"
+        check_censored "$sub"
     elif grep -q 'No runs survived high-motion outlier scrubbing' "$log"; then
         # không phải lỗi: còn < 240 s sạch sau censor → loại theo quy tắc, ghi vào .excluded
         grep -o 'survive high-motion outlier scrubbing ([0-9.]*)' "$log" | head -1 > "$LOGD/$sub.excluded"
@@ -82,6 +83,22 @@ one() {
     else
         touch "$LOGD/$sub.failed"
         echo "$(date '+%F %T') LỖI     $sub  (xem $log)" | tee -a "$LOGD/_progress.log"
+    fi
+}
+
+MAX_CENSORED=${XCPD_MAX_CENSORED:-0.30}   # Rutherford et al. 2026: loại run có > 30% frame bị censor
+
+check_censored() {  # sau XCP-D: > MAX_CENSORED frame bị cắt → .excluded (giữ output), ngược lại → .done
+    local o frac
+    o=$(ls "$OUT/$1"/func/*_outliers.tsv | head -1)
+    # cột 'denoising' = 1 là frame bị cắt; tỷ lệ trên số volume sau dummy scan
+    frac=$(awk -F'\t' 'NR==1{for(i=1;i<=NF;i++) if($i=="denoising") c=i; next} {n++; k+=($c>0)} END{printf "%.3f", k/n}' "$o")
+    if awk -v f="$frac" -v m="$MAX_CENSORED" 'BEGIN{exit !(f>m)}'; then
+        echo "censored $frac > $MAX_CENSORED" > "$LOGD/$1.excluded"
+        echo "$(date '+%F %T') LOẠI    $1  ($frac frame bị cắt > $MAX_CENSORED)" | tee -a "$LOGD/_progress.log"
+    else
+        echo "$(date '+%F %T') censored=$frac" > "$LOGD/$1.done"
+        echo "$(date '+%F %T') XONG    $1  (censored $frac)" | tee -a "$LOGD/_progress.log"
     fi
 }
 
