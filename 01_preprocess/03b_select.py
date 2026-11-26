@@ -6,6 +6,7 @@ Cách dùng:  python3 01_preprocess/03b_select.py
 Đầu ra:   $WORK/selection/
   iqm_flags.tsv      mọi ảnh: lớp protocol, IQM chính, chỉ số nào là outlier (nhẹ / nặng)
   manifest.tsv       mỗi subject 1 dòng: ảnh được chọn hoặc lý do loại
+  selection_detail.tsv  mọi ảnh của subject có > 1 T1/BOLD: CHỌN / bỏ + lý do
   qc_review.tsv      ảnh ĐƯỢC CHỌN mà có outlier → cần xem báo cáo MRIQC bằng mắt
   subjects_fmriprep.txt  danh sách subject cho 04_fmriprep.sh --list
   report.txt
@@ -129,6 +130,47 @@ def main():
     n_t1 = t1.groupby("participant_id").size()
     n_bo = bo.groupby("participant_id").size()
 
+    # ---------- lý do chọn / bỏ từng ảnh (chỉ subject có > 1 T1 hoặc > 1 BOLD) ----------
+    def why_t1(x, c):
+        if not x.has_iqm:
+            return "không có IQM (MRIQC lỗi / file hỏng)"
+        if x.n_severe > c.n_severe:
+            return f"outlier nặng ({x.outlier_iqms})"
+        if x["rank"] > c["rank"]:
+            return f"sequence ưu tiên thấp hơn (hạng {x['rank']} so với {c['rank']})"
+        return f"CNR thấp hơn ({x.cnr:.3f} so với {c.cnr:.3f})"
+
+    def why_bold(x, c):
+        if not x.long_enough:
+            return f"BOLD < {MIN_BOLD_MIN} phút ({x.duration_min:.2f} phút)"
+        if not x.has_iqm:
+            return "không có IQM (MRIQC lỗi / file hỏng)"
+        if x.n_severe > c.n_severe:
+            return f"outlier nặng ({x.outlier_iqms})"
+        if x.duration_min < c.duration_min:
+            return f"ngắn hơn ({x.duration_min:.2f} so với {c.duration_min:.2f} phút)"
+        return f"fd_mean cao hơn ({x.fd_mean:.3f} so với {c.fd_mean:.3f} mm)"
+
+    det = []
+    multi_subs = set(n_t1[n_t1 > 1].index) | set(n_bo[n_bo > 1].index)
+    for kind, df, best, why in (("T1w", t1, best_t1, why_t1), ("bold", bo, best_bo, why_bold)):
+        for _, x in df[df.participant_id.isin(multi_subs)].iterrows():
+            c = best.loc[x.participant_id] if x.participant_id in best.index else None
+            chosen = c is not None and x.file == c.file
+            det.append({
+                "participant_id": x.participant_id, "kind": kind, "file": x.file,
+                "SeriesDescription": x.SeriesDescription,
+                "duration_min": round(x.duration_min, 2) if kind == "bold" else np.nan,
+                "t1_rank": x["rank"] if kind == "T1w" else np.nan,
+                "cnr": x.get("cnr", np.nan), "fd_mean": x.get("fd_mean", np.nan),
+                "outlier_iqms": x.outlier_iqms if isinstance(x.outlier_iqms, str) else "",
+                "decision": "CHỌN" if chosen else "bỏ",
+                "reason": ("" if chosen else
+                           why(x, c) if c is not None else "subject không có ảnh hợp lệ loại này"),
+            })
+    detail = pd.DataFrame(det).sort_values(["participant_id", "kind", "decision"])
+    detail.to_csv(OUT / "selection_detail.tsv", sep="\t", index=False, float_format="%.4g")
+
     rows = []
     for sub in sorted(inv.participant_id.unique()):
         r = {"participant_id": sub, "n_T1w": int(n_t1.get(sub, 0)), "n_bold": int(n_bo.get(sub, 0))}
@@ -192,6 +234,13 @@ def main():
                  index="bold_cls", columns="group", values="fd_mean", aggfunc="median").round(3).to_string() + "\n")
     multi = sel[sel.selection_needed]
     L.append(f"== Subject phải chọn ảnh: {len(multi)}; T1 được chọn:\n" + multi.T1w_desc.value_counts().to_string())
+    dropped = detail[detail.decision == "bỏ"]
+    rsn = dropped.reason.str.replace(r"\s*\(.*\)$", "", regex=True)
+    L.append(f"\n== Ảnh bị bỏ khi chọn (chi tiết: selection_detail.tsv): {len(dropped)} ảnh "
+             f"ở {dropped.participant_id.nunique()} subject\n"
+             + pd.crosstab(rsn, dropped.kind, margins=True).to_string())
+    L.append("\n-- T1 bị bỏ theo SeriesDescription\n"
+             + dropped[dropped.kind == "T1w"].SeriesDescription.value_counts().to_string())
     txt = "\n".join(L)
     (OUT / "report.txt").write_text(txt + "\n")
     print(txt)
