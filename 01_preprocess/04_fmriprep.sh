@@ -6,9 +6,9 @@
 #   bash 01_preprocess/04_fmriprep.sh --list file.txt  # danh sách subject (mỗi dòng 1 sub)
 #   bash 01_preprocess/04_fmriprep.sh --retry-failed
 #   Tùy chỉnh tài nguyên:  FMRIPREP_THREADS=4 FMRIPREP_MEM_GB=16 FMRIPREP_JOBS=6 bash ...
-#   Slice timing:  mặc định TẮT cho mọi subject (FMRIPREP_IGNORE=slicetiming), vì 100% BOLD Philips
-#   thiếu SliceTiming → bật ở một phần sẽ trùng với hãng máy. Nếu bổ sung được SliceTiming cho Philips
-#   (bảng MAYOADIRL_MRI_FMRI_NFQ) thì chạy với FMRIPREP_IGNORE="" để bật cho tất cả.
+#   Slice timing:  BẬT (mặc định FMRIPREP_IGNORE=""). SliceTiming còn thiếu đã được bổ sung từ bảng NFQ
+#   của ADNI bằng 03c_slicetiming.py (499/509 subject); 10 Philips ADNI4 multiband vẫn thiếu → fMRIPrep
+#   tự bỏ STC cho các run đó. FMRIPREP_IGNORE=slicetiming để tắt cho tất cả.
 #
 # Chạy lại được: có $LOG_DIR/fmriprep/<sub>.done thì bỏ qua. Trước khi chạy, xóa file IsRunning
 # của FreeSurfer (còn sót nếu lần trước bị dừng giữa chừng) để recon-all chạy tiếp được.
@@ -20,7 +20,7 @@ source "$(dirname "$SELF")/../config/paths.sh"
 
 THREADS=${FMRIPREP_THREADS:-4}     # FreeSurfer phần lớn đơn luồng; 8 core: sub-6179 mất 2 giờ 42 phút
 MEM_GB=${FMRIPREP_MEM_GB:-16}
-IGNORE=${FMRIPREP_IGNORE-slicetiming}
+IGNORE=${FMRIPREP_IGNORE-}
 JOBS=${FMRIPREP_JOBS:-$(( MAX_CPUS / THREADS ))}
 OUT=$DERIV_DIR/fmriprep
 WRK=$WORK_TMP/fmriprep

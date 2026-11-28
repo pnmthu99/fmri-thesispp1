@@ -46,7 +46,7 @@ Thư mục cũ `thupnm-wp/bids` và `thupnm-wp/fmriprep` (ds002748) thuộc proj
 | Motion | `--fd-thresh 0.5`; độ nhạy ở 0.3. FC phải lấy từ dữ liệu đã censor, không dùng dữ liệu interpolated |
 | Lọc tần số | 0.01–0.08 Hz (cần cho ALFF), `--smoothing 0`, `--despike y` |
 | SDC | `--use-syn-sdc warn`; ghi lại phương pháp SDC thực tế cho từng subject |
-| Slice timing | Ảnh Philips thường thiếu `SliceTiming`; bổ sung từ bảng LONI `MAYOADIRL_MRI_FMRI_NFQ_*.csv` nếu được, nếu không thì cân nhắc `--ignore slicetiming` cho tất cả. Chốt sau audit |
+| Slice timing | **BẬT STC** (chốt 2026-11-28, giống pipeline ADNI rs-fMRI 2025–26). SliceTiming thiếu bổ sung từ bảng NFQ của ADNI (`03c_slicetiming.py`) → 499/509 subject có STC; 10 Philips ADNI4 multiband (2 AD, 8 MCI) không có STC (bảng ghi như đơn lát, sai với MB3), ghi `stc_applied` làm covariate/sensitivity |
 | Chạy tăng dần | Được, vì mỗi subject chạy riêng. Ngưỡng QC dùng toàn bộ dữ liệu (MRIQC outlier, Euler theo site) và QC cuối tính lại khi có đủ 3 nhóm. Chốt denoise khi đã có CN |
 | Chạy dài | Server **không có Slurm/Apptainer**, chỉ có Docker (chạy `-u $(id -u):$(id -g)`). Mọi việc dài chạy trong tmux phiên `adni`, mỗi việc một cửa sổ. Script phải chạy lại được sau sự cố: bỏ qua subject xong, dọn `IsRunning` của FreeSurfer |
 | Tài nguyên | Máy 32 core, 125 GB RAM, dùng chung với người khác → giới hạn `MAX_CPUS=26`, `MAX_MEM_GB=100` (2 user khác dùng < 1 core, 10–17 GB; chừa 6 core / 25 GB) |
@@ -153,6 +153,14 @@ Lưu ý cho giai đoạn feature: code MIND (github.com/isebenius/MIND) mới đ
   - Nhịp thở trong tham số motion: run TR ≤ 1.5 s có 21–68% công suất trans_y ở 0.2–0.3 Hz. Notch (lọc thử 0.2–0.3 Hz) giảm mean FD 10–60% nhưng % frame bị cắt chỉ đổi 0–1% (trừ sub-10871: 44 → 33%, vẫn > 30%). Đề xuất: **không bật notch** (định nghĩa FD giữ như nhau cho mọi protocol, vì TR 3 s không lọc được); hiệu ứng FD giả của MB hấp thụ bằng protocol trong ComBat/covariate.
 - **ALFF tách khỏi XCP-D** (2026-11-26): hàm `compute_alff` của XCP-D tính Lomb-Scargle ở 486 tần số × từng grayordinate → ~11 giờ CPU cho run 973 volume (sub-6854 mất 6 giờ; 65 subject Siemens MB). XCP-D nay chạy `--skip alff`; `01_preprocess/05b_alff.py` tính ngay sau (trong container XCP-D) từ `desc-denoised_bold.dtseries.nii` + `outliers.tsv`: cùng công thức (khớp hàm XCP-D tới 1e-15 trên dữ liệu giả), chỉ tính tần số trong dải, vector hóa → **2–4 giây/subject**. Khác XCP-D 1 điểm: SD nhân cuối tính trên frame thật (XCP-D dùng chuỗi đã nội suy). So với ALFF XCP-D trên pilot: sub-6854 (không censor) trùng hoàn toàn; 4024/6665/10021 r ≥ 0.99 (parcel), ALFF mình thấp hơn 0.5–5%. Output: `*_stat-alff_desc-lomb_bold.tsv` (parcel) và `*_stat-alff_desc-lomb_boldmap.dscalar.nii`. ALFF dùng làm **node feature** (Aim 2).
 - `05_xcpd.sh --follow` không còn chờ cả đợt (trước đó 9 subject bị kẹt sau sub-6854): có chỗ trống là nhận subject mới. `--alff sub-X` để chỉ tính lại ALFF.
+
+- **Slice timing bổ sung (2026-11-28)**: bảng `MAYOADIRL_MRI_FMRI_NFQ_27Nov2026.csv` (ADNIGO/2/3) và `MRINFQ_27Nov2026.csv` (ADNI4) trong `$WORK/tables/`. `01_preprocess/03c_slicetiming.py --write` ghi 120 JSON BOLD (thay file, bỏ hard link, raw/ giữ nguyên; bản cũ ở `audit/slicetiming_backup/`, tổng hợp `audit/slicetiming_fill.tsv`, mỗi JSON có `SliceTimingSource`):
+  - 92 run Philips lấy thẳng từ bảng (RID + SeriesNumber + giờ chụp ±120 s + số lát; giá trị = giờ trong ngày → trừ min).
+  - 12 run Philips suy ra theo quy luật protocol (lát chẵn trước rồi lẻ, bước TR/n; đúng 98% của 1007 dòng Philips 48 lát TR 3 s); 6 run Siemens 49 lát suy ra theo interleaved Siemens (giống 135 subject Siemens 48 lát).
+  - 10 run Philips ADNI4 MB (TR 1.5 s): bảng ghi 51 thời điểm khác nhau (đơn lát) → không dùng, fMRIPrep tự bỏ STC.
+  - **Sửa TR**: 4 run ADNI2 Philips (sub-4171, 4219, 4229, 4237; 140 vol) JSON/NIfTI ghi TR 6.02158 s, bảng NFQ và protocol ADNI2 là 3 s → sửa cả JSON và pixdim[4]. Kết quả pilot cũ của sub-4219 không dùng được.
+  - Bảng NFQ có cột `OVERALLQC` (QC của Mayo) để đối chiếu với MRIQC sau.
+- **Chạy toàn bộ (2026-11-28 11:59)**: tmux `adni:fmriprep` (508 subject, 9 × 4 core, STC bật) và `adni:xcpd` (`--follow`, 2 job). Pilot (chạy không STC) chuyển sang `derivatives/_pilot_nostc/` và chạy lại (FreeSurfer dùng lại); riêng sub-10776 giữ nguyên (không có SliceTiming, đã bị loại vì motion).
 
 Việc tiếp theo:
 1. Chốt 7 điểm review ở trên (chờ người dùng).
